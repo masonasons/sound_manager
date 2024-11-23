@@ -38,6 +38,7 @@ if (volume!=0)
 this.handle.volume=volume;
 if (pitch!=100)
 this.handle.pitch=pitch;
+this.handle.set_fx("");
 if (this.fx!=null and this.fx.length()>0)
 {
 for (uint i=0; i<this.fx.length(); i++)
@@ -350,7 +351,7 @@ void resume_all()
 for (uint i=0; i<this.items.length(); i++)
 {
 if (this.items[i].handle!=null and this.items[i].handle.paused)
-this.items[i].handle.play();
+this.items[i].play();
 }
 }
 }
