@@ -337,4 +337,20 @@ return s_rotation;
 bool destroy_all() {
 return this.destroy(this.items)>0;
 }
+void pause_all()
+{
+for (uint i=0; i<this.items.length(); i++)
+{
+if (@this.items[i].handle!=null and this.items[i].handle.playing)
+this.items[i].handle.pause();
+}
+}
+void resume_all()
+{
+for (uint i=0; i<this.items.length(); i++)
+{
+if (this.items[i].handle!=null and this.items[i].handle.paused)
+this.items[i].handle.play();
+}
+}
 }
