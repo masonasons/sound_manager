@@ -65,27 +65,26 @@ class stationary_sound: sound_item {
 	}
 }
 class positional_sound: sound_item {
-	int s_length = 0, s_width = 0, s_height = 0;
+	int leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange;
 	vector pv, v, listener;
-	positional_sound(string filename, vector v, bool looping = false, bool persist = false, int length = 0, int width = 0, int height = 0, string[]@ fx = null, sound_manager@ m = null, string owner = "") {
+	positional_sound(string filename, vector v, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
 		super(filename, looping, persist, @fx, @m, owner);
 		this.v = v;
 		this.pv = this.v;
-		this.s_length = length;
-		this.s_width = width;
-		this.s_height = height;
+		this.leftrange = leftrange;
+		this.rightrange = rightrange;
+		this.backwardrange = backwardrange;
+		this.forwardrange = forwardrange;
+		this.lowerrange = lowerrange;
+		this.upperrange = upperrange;
 		type = sound_item_type_positional;
 		this.set_sound_position(true);
 	}
 	bool get_in_earshot() property {
 		if (m.max_distance <= 0)
 			return true;
-		if (length == 0 and width == 0 and height == 0) {
-			if (get_3d_distance(m.listener.x, m.listener.y, m.listener.z, this.pv.x, this.pv.y, this.pv.z) > m.max_distance)
-				return false;
-		} else {
-			if (get_3d_distance(m.listener.x, m.listener.y, m.listener.z, this.pv.x, this.pv.y, this.pv.z) > m.max_distance)
-				return false;
+		if (get_3d_distance(m.listener.x, m.listener.y, m.listener.z, this.pv.x, this.pv.y, this.pv.z) > m.max_distance) {
+			return false;
 		}
 		return true;
 	}
@@ -98,67 +97,37 @@ class positional_sound: sound_item {
 		return sound_item::play(wait, pan, pitch, volume);
 	}
 	void set_sound_position(bool force = false) {
-		if (length == 0 and width == 0 and height == 0) {
-			if (this.v != this.pv or this.listener != m.listener or force == true) {
-				this.listener = m.listener;
-				this.pv = this.v;
-				if (this.loaded)
-					this.handle.set_position(m.listener.x, m.y_is_elevation == false ? m.listener.y : m.listener.z, m.y_is_elevation == false ? m.listener.z : m.listener.y, this.v.x, m.y_is_elevation == false ? this.v.y : this.v.z, m.y_is_elevation == false ? this.v.z : this.v.y, m.rotation, m.pan_step, m.volume_step);
-			}
-		} else {
-			vector new;
-			int left_x = v.x;
-			int right_x = v.x + length;
-			int bottom_y = v.y;
-			int top_y = v.y + width;
-			int bottom_z = v.z;
-			int top_z = v.z + height;
-			if (m.listener.x <= left_x)
-				new.x = left_x;
-			else if (m.listener.x >= right_x)
-				new.x = right_x;
-			else
-				new.x = m.listener.x;
-			if (m.listener.y <= bottom_y)
-				new.y = bottom_y;
-			else if (m.listener.y >= top_y)
-				new.y = top_y;
-			else
-				new.y = m.listener.y;
-			if (m.listener.z <= bottom_z)
-				new.z = bottom_z;
-			else if (m.listener.z >= top_z)
-				new.z = top_z;
-			else
-				new.z = m.listener.z;
-			if (new != this.pv or this.listener != m.listener or force == true) {
-				this.listener = m.listener;
-				this.pv = new;
-				if (this.loaded)
-					this.handle.set_position(m.listener.x, m.y_is_elevation == false ? m.listener.y : m.listener.z, m.y_is_elevation == false ? m.listener.z : m.listener.y, new.x, m.y_is_elevation ? new.z : new.y, m.y_is_elevation ? new.y : new.z, m.rotation, m.pan_step, m.volume_step);
-			}
+		vector new;
+		int left_x = v.x - this.leftrange;
+		int right_x = v.x + this.rightrange;
+		int bottom_y = v.y - this.backwardrange;
+		int top_y = v.y + this.forwardrange;
+		int bottom_z = v.z - this.lowerrange;
+		int top_z = v.z + this.upperrange;
+		if (m.listener.x <= left_x)
+			new.x = left_x;
+		else if (m.listener.x >= right_x)
+			new.x = right_x;
+		else
+			new.x = m.listener.x;
+		if (m.listener.y <= bottom_y)
+			new.y = bottom_y;
+		else if (m.listener.y >= top_y)
+			new.y = top_y;
+		else
+			new.y = m.listener.y;
+		if (m.listener.z <= bottom_z)
+			new.z = bottom_z;
+		else if (m.listener.z >= top_z)
+			new.z = top_z;
+		else
+			new.z = m.listener.z;
+		if (new != this.pv or this.listener != m.listener or force == true) {
+			this.listener = m.listener;
+			this.pv = new;
+			if (this.loaded)
+				this.handle.set_position(m.listener.x, m.y_is_elevation == false ? m.listener.y : m.listener.z, m.y_is_elevation == false ? m.listener.z : m.listener.y, new.x, m.y_is_elevation ? new.z : new.y, m.y_is_elevation ? new.y : new.z, m.rotation, m.pan_step, m.volume_step);
 		}
-	}
-	int get_length() property {
-		return this.s_length;
-	}
-	void set_length(int l) property {
-		this.s_length = l;
-		this.set_sound_position();
-	}
-	int get_width() property {
-		return this.s_width;
-	}
-	void set_width(int w) property {
-		this.s_width = w;
-		this.set_sound_position();
-	}
-	int get_height() property {
-		return this.s_height;
-	}
-	void set_height(int h) property {
-		this.s_height = h;
-		this.set_sound_position();
 	}
 	void set_position(vector v) property {
 		this.v = v;
@@ -193,9 +162,9 @@ class sound_manager {
 		items.insert_last(@s);
 		return @s;
 	}
-	positional_sound@ play(string filename, vector v, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, int pan = 0, int pitch = 100, int volume = 0, int length = 0, int width = 0, int height = 0, string[]@ fx = null, string owner = "") {
+	positional_sound@ play(string filename, vector v, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, int pan = 0, int pitch = 100, int volume = 0, string[]@ fx = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
 		clean_sounds();
-		positional_sound s(filename, v, looping, persist, length, width, height, @fx, @this, owner);
+		positional_sound s(filename, v, looping, persist, @fx, @this, owner, leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange);
 		if (immediate)
 			s.play(wait, pan, pitch, volume);
 		else
