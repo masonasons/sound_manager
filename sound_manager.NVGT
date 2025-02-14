@@ -146,7 +146,7 @@ class sound_manager {
 	bool y_is_elevation = false;
 	sound_item@[] items();
 	mixer@ mix;
-	sound_manager(mixer@ mix = null) {
+	sound_manager(mixer@ mix = @sound_default_mixer) {
 		if (@mix != null)
 			@this.mix = @mix;
 		else
