@@ -1,11 +1,11 @@
 #include "sound_manager.nvgt"
 sound_manager p;
 timer rotationtimer;
-
 void main() {
 	sound_global_hrtf = true;
 	show_window("NVGT 3d sound demo");
-	positional_sound@ s = p.play("plane.ogg", vector(0, 0, 0), looping = true);
+	p.behind_pitch_decrease = 5;
+	positional_sound@ s = p.play("music.ogg", vector(0, 0, 0), looping = true);
 	if (@s == null) {
 		alert("oops", "couldn't load sound");
 		return;

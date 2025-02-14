@@ -14,6 +14,10 @@ abstract class sound_item {
 	string filename;
 	sound handle;
 	string owner;
+	float behind_pitch_decrease = 0, pan_step = 1, volume_step = 1;
+	double pitch = 100;
+	float volume = 0;
+	float pan = 0;
 	sound_item(string filename, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "") {
 		@this.m = m;
 		this.filename = filename;
@@ -25,16 +29,13 @@ abstract class sound_item {
 		@this.fx = @fx;
 		this.owner = owner;
 	}
-	bool play(bool wait = false, int pan = 0, int pitch = 0, int volume = 0) {
+	bool play(bool wait = false) {
 		if (!this.loaded)
 			this.load();
 		if (this.loaded) {
-			if (pan != 0)
-				this.handle.pan = pan;
-			if (volume != 0)
-				this.handle.volume = volume;
-			if (pitch != 100)
-				this.handle.pitch = pitch;
+			this.handle.pan = this.pan;
+			this.handle.volume = this.volume;
+			this.handle.pitch = this.pitch;
 			this.handle.set_fx("");
 			if (this.fx != null and this.fx.length() > 0) {
 				for (uint i = 0; i < this.fx.length(); i++)
@@ -67,6 +68,7 @@ class stationary_sound: sound_item {
 class positional_sound: sound_item {
 	int leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange;
 	vector pv, v, listener;
+	float rotation = 0;
 	positional_sound(string filename, vector v, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
 		super(filename, looping, persist, @fx, @m, owner);
 		this.v = v;
@@ -88,13 +90,13 @@ class positional_sound: sound_item {
 		}
 		return true;
 	}
-	bool play(bool wait = false, int pan = 0, int pitch = 100, int volume = 0) {
+	bool play(bool wait = false) {
 		if (!in_earshot)
 			return false;
 		if (!this.loaded)
 			this.load();
 		this.set_sound_position(true);
-		return sound_item::play(wait, pan, pitch, volume);
+		return sound_item::play(wait);
 	}
 	void set_sound_position(bool force = false) {
 		vector new;
@@ -104,6 +106,7 @@ class positional_sound: sound_item {
 		int top_y = v.y + this.forwardrange;
 		int bottom_z = v.z - this.lowerrange;
 		int top_z = v.z + this.upperrange;
+		double startpitch = this.pitch;
 		if (m.listener.x <= left_x)
 			new.x = left_x;
 		else if (m.listener.x >= right_x)
@@ -112,9 +115,10 @@ class positional_sound: sound_item {
 			new.x = m.listener.x;
 		if (m.listener.y <= bottom_y)
 			new.y = bottom_y;
-		else if (m.listener.y >= top_y)
+		else if (m.listener.y >= top_y) {
 			new.y = top_y;
-		else
+			startpitch -= this.behind_pitch_decrease;
+		} else
 			new.y = m.listener.y;
 		if (m.listener.z <= bottom_z)
 			new.z = bottom_z;
@@ -122,11 +126,14 @@ class positional_sound: sound_item {
 			new.z = top_z;
 		else
 			new.z = m.listener.z;
-		if (new != this.pv or this.listener != m.listener or force == true) {
+		if (new != this.pv or this.listener != m.listener or this.rotation != m.rotation or force == true) {
 			this.listener = m.listener;
 			this.pv = new;
-			if (this.loaded)
-				this.handle.set_position(m.listener.x, m.y_is_elevation == false ? m.listener.y : m.listener.z, m.y_is_elevation == false ? m.listener.z : m.listener.y, new.x, m.y_is_elevation ? new.z : new.y, m.y_is_elevation ? new.y : new.z, m.rotation, m.pan_step, m.volume_step);
+			this.rotation = m.rotation;
+			if (this.loaded) {
+				if (this.handle.pitch != startpitch) this.handle.pitch = startpitch;
+				this.handle.set_position(this.listener.x, m.y_is_elevation == false ? this.listener.y : this.listener.z, m.y_is_elevation == false ? this.listener.z : this.listener.y, new.x, m.y_is_elevation ? new.z : new.y, m.y_is_elevation ? new.y : new.z, this.rotation, this.pan_step, this.volume_step);
+			}
 		}
 	}
 	void set_position(vector v) property {
@@ -142,6 +149,7 @@ class sound_manager {
 	float s_rotation;
 	float pan_step = 1;
 	float volume_step = 1;
+	float behind_pitch_decrease = 0;
 	int max_distance = 0;
 	bool y_is_elevation = false;
 	sound_item@[] items();
@@ -152,21 +160,31 @@ class sound_manager {
 		else
 			@this.mix = mixer();
 	}
-	stationary_sound@ play(string filename, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, int pan = 0, int pitch = 100, int volume = 0, string[]@ fx = null, string owner = "") {
+	stationary_sound@ play(string filename, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, float pan = 0, double pitch = 100, float volume = 0, string[]@ fx = null, string owner = "") {
 		clean_sounds();
 		stationary_sound s(filename, looping, persist, @fx, @this, owner);
+		s.pan = pan;
+		s.volume = volume;
+		s.pitch = pitch;
 		if (immediate)
-			s.play(wait, pan, pitch, volume);
+			s.play(wait);
 		else
 			s.load();
 		items.insert_last(@s);
 		return @s;
 	}
-	positional_sound@ play(string filename, vector v, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, int pan = 0, int pitch = 100, int volume = 0, string[]@ fx = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
+	positional_sound@ play(string filename, vector v, float rotation = 0.0, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, float pan = 0, double pitch = 100, float volume = 0, string[]@ fx = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
 		clean_sounds();
 		positional_sound s(filename, v, looping, persist, @fx, @this, owner, leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange);
+		s.rotation = rotation;
+		s.volume_step = this.volume_step;
+		s.pan_step = this.pan_step;
+		s.behind_pitch_decrease = this.behind_pitch_decrease;
+		s.pan = pan;
+		s.volume = volume;
+		s.pitch = pitch;
 		if (immediate)
-			s.play(wait, pan, pitch, volume);
+			s.play(wait);
 		else
 			s.load();
 		items.insert_last(@s);
