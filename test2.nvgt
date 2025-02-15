@@ -18,6 +18,7 @@ void main() {
 		wait(5);
 		if (key_pressed(KEY_ESCAPE))
 			exit();
+		if (key_pressed(KEY_N)) p.update_sound(s, vector(random(0, 30), random(0, 30), random(0, 0)));
 		if (key_down(KEY_E) and rotationtimer.elapsed > 100) {
 			angle += calculate_theta(15);
 			rotationtimer.restart();
@@ -38,7 +39,6 @@ void main() {
 			z--;
 		if (key_pressed(KEY_PAGEUP))
 			z++;
-		p.position = vector(x, y, z);
-		p.rotation = angle;
-	}
+		p.update_listener(vector(x, y, z), angle);
+			}
 }

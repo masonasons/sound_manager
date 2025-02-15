@@ -67,12 +67,12 @@ class stationary_sound: sound_item {
 }
 class positional_sound: sound_item {
 	int leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange;
-	vector pv, v, listener;
-	float rotation = 0;
-	positional_sound(string filename, vector v, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
+	vector pv, v, last_listener;
+	double last_rotation = 0;
+	positional_sound(string filename, vector v, double rotation = 0, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
 		super(filename, looping, persist, @fx, @m, owner);
 		this.v = v;
-		this.pv = this.v;
+		this.pv = v;
 		this.leftrange = leftrange;
 		this.rightrange = rightrange;
 		this.backwardrange = backwardrange;
@@ -80,12 +80,12 @@ class positional_sound: sound_item {
 		this.lowerrange = lowerrange;
 		this.upperrange = upperrange;
 		type = sound_item_type_positional;
-		this.set_sound_position(true);
+		this.update(v, rotation, force = true);
 	}
 	bool get_in_earshot() property {
 		if (m.max_distance <= 0)
 			return true;
-		if (get_3d_distance(m.listener.x, m.listener.y, m.listener.z, this.pv.x, this.pv.y, this.pv.z) > m.max_distance) {
+		if (get_3d_distance(this.last_listener.x, this.last_listener.y, this.last_listener.z, this.pv.x, this.pv.y, this.pv.z) > m.max_distance) {
 			return false;
 		}
 		return true;
@@ -95,10 +95,10 @@ class positional_sound: sound_item {
 			return false;
 		if (!this.loaded)
 			this.load();
-		this.set_sound_position(true);
+		this.update(this.last_listener, this.last_rotation, force = true);
 		return sound_item::play(wait);
 	}
-	void set_sound_position(bool force = false) {
+	void update(vector listener, double rotation = 0, bool force = false) {
 		vector new;
 		int left_x = v.x - this.leftrange;
 		int right_x = v.x + this.rightrange;
@@ -107,46 +107,39 @@ class positional_sound: sound_item {
 		int bottom_z = v.z - this.lowerrange;
 		int top_z = v.z + this.upperrange;
 		double startpitch = this.pitch;
-		if (m.listener.x <= left_x)
+		if (listener.x <= left_x)
 			new.x = left_x;
-		else if (m.listener.x >= right_x)
+		else if (listener.x >= right_x)
 			new.x = right_x;
 		else
-			new.x = m.listener.x;
-		if (m.listener.y <= bottom_y)
+			new.x = listener.x;
+		if (listener.y <= bottom_y)
 			new.y = bottom_y;
-		else if (m.listener.y >= top_y) {
+		else if (listener.y >= top_y) {
 			new.y = top_y;
 			startpitch -= this.behind_pitch_decrease;
 		} else
-			new.y = m.listener.y;
-		if (m.listener.z <= bottom_z)
+			new.y = listener.y;
+		if (listener.z <= bottom_z)
 			new.z = bottom_z;
-		else if (m.listener.z >= top_z)
+		else if (listener.z >= top_z)
 			new.z = top_z;
 		else
-			new.z = m.listener.z;
-		if (new != this.pv or this.listener != m.listener or this.rotation != m.rotation or force == true) {
-			this.listener = m.listener;
+			new.z = listener.z;
+		if (new != this.pv or this.last_listener != listener or this.last_rotation != rotation or force == true) {
+			this.last_listener = listener;
 			this.pv = new;
-			this.rotation = m.rotation;
+			this.last_rotation = rotation;
 			if (this.loaded) {
 				if (this.handle.pitch != startpitch) this.handle.pitch = startpitch;
-				this.handle.set_position(this.listener.x, m.y_is_elevation == false ? this.listener.y : this.listener.z, m.y_is_elevation == false ? this.listener.z : this.listener.y, new.x, m.y_is_elevation ? new.z : new.y, m.y_is_elevation ? new.y : new.z, this.rotation, this.pan_step, this.volume_step);
+				this.handle.set_position(listener.x, m.y_is_elevation == false ? listener.y : listener.z, m.y_is_elevation == false ? listener.z : listener.y, new.x, m.y_is_elevation ? new.z : new.y, m.y_is_elevation ? new.y : new.z, rotation, this.pan_step, this.volume_step);
 			}
 		}
 	}
-	void set_position(vector v) property {
-		this.v = v;
-		this.set_sound_position();
-	}
-	vector get_position() property {
-		return v;
-	}
 }
 class sound_manager {
-	vector listener;
-	float s_rotation;
+	vector last_listener;
+	float last_rotation;
 	float pan_step = 1;
 	float volume_step = 1;
 	float behind_pitch_decrease = 0;
@@ -175,8 +168,9 @@ class sound_manager {
 	}
 	positional_sound@ play(string filename, vector v, float rotation = 0.0, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, float pan = 0, double pitch = 100, float volume = 0, string[]@ fx = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
 		clean_sounds();
-		positional_sound s(filename, v, looping, persist, @fx, @this, owner, leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange);
-		s.rotation = rotation;
+		positional_sound s(filename, v, rotation, looping, persist, @fx, @this, owner, leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange);
+		this.last_listener = v;
+		this.last_rotation = rotation;
 		s.volume_step = this.volume_step;
 		s.pan_step = this.pan_step;
 		s.behind_pitch_decrease = this.behind_pitch_decrease;
@@ -198,6 +192,7 @@ class sound_manager {
 		return ret;
 	}
 	bool update_sounds(string&in owner, vector position) {
+		clean_sounds();
 		sound_item@[] items = this.get_items(owner);
 		if (items.length() <= 0) return false;
 		bool updated = false;
@@ -205,30 +200,31 @@ class sound_manager {
 			if (items[i].type != sound_item_type_positional) continue;
 			positional_sound@ snd = cast < positional_sound@ > (items[i]);
 			if (@snd != null) {
-				snd.position = position;
+				snd.v = position;
+				snd.update(snd.last_listener, snd.last_rotation);
 				updated = true;
 			}
 		}
-		if (updated) this.update_sound_positions();
 		return updated;
 	}
-	void update_sound_positions(bool force = false) {
-		clean_sounds();
-		for (uint i = 0; i < items.length(); i++) {
-			if (items[i].type == sound_item_type_positional) {
-				positional_sound@ snd = cast < positional_sound@ > (items[i]);
-				if (snd.in_earshot) {
-					if (!snd.handle.playing and !snd.handle.paused and !snd.played)
-						snd.play();
-					snd.set_sound_position(force);
-				} else {
-					if (snd.handle.playing)
-						snd.handle.stop();
-					snd.handle.close();
-					snd.loaded = false;
-				}
+	bool update_sound(sound_item@ handle, vector position, bool force = false) {
+		if (handle is null) return false;
+		if (handle.type == sound_item_type_positional) {
+			positional_sound@ snd = cast < positional_sound@ > (handle);
+			if (snd.in_earshot) {
+				if (!snd.handle.playing and !snd.handle.paused and !snd.played)
+					snd.play();
+				snd.v= position;
+				snd.update(snd.last_listener, snd.last_rotation, force = force);
+			} else {
+				if (snd.handle.playing)
+					snd.handle.stop();
+				snd.handle.close();
+				snd.loaded = false;
 			}
+			return true;
 		}
+		return false;
 	}
 	bool destroy(sound_item@ handle) {
 		if (@handle == null) return false;
@@ -263,16 +259,14 @@ class sound_manager {
 			}
 		}
 	}
-	void set_position(vector v) property {
-		this.listener = v;
-		update_sound_positions();
-	}
-	void set_rotation(float r) property {
-		this.s_rotation = r;
-		update_sound_positions(true);
-	}
-	float get_rotation() property {
-		return s_rotation;
+	void update_listener(vector listener, double rotation, bool force = false) {
+		this.last_listener = listener;
+		this.last_rotation = rotation;
+		for (uint i = 0; i < this.items.length(); i++) {
+			positional_sound@ snd = cast<positional_sound@>(this.items[i]);
+			if (snd is null) continue;
+			snd.update(listener, rotation, force = force);
+		}
 	}
 	bool destroy_all() {
 		return this.destroy(this.items) > 0;

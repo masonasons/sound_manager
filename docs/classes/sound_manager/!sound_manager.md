@@ -1,5 +1,5 @@
 # sound_manager
-An easy, advance sound manager that can play multiple sounds easily.
+An easy-to-use advanced sound manager that allows seamless playback of multiple sounds with ease.
 
 `sound_manager(mixer@ mix = @sound_default_mixer);`
 

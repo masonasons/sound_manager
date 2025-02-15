@@ -4,12 +4,12 @@ vector me;
 void main() {
 	me.x = 5;
 	sound_global_hrtf = true;
-	snd.position = me; //update listener position
-	positional_sound@ ding = snd.play("plane.ogg", vector(15, 0), looping: true, pitch = 80);
+	snd.update_listener(me, 0);
+	positional_sound@ ding = snd.play("music.ogg", vector(15, 0, 0), looping: true, pitch = 100);
 	for (uint i = me.x; i < 40; i++) {
 		me.x++;
-		snd.position = me; //update listener position
-		wait(100);
+		snd.update_listener(me, 0);
+		wait(500);
 	}
 	snd.pause_all();
 	wait(1200);
