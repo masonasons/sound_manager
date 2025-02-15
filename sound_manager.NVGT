@@ -139,7 +139,7 @@ class positional_sound: sound_item {
 }
 class sound_manager {
 	vector last_listener;
-	float last_rotation;
+	double last_rotation;
 	float pan_step = 1;
 	float volume_step = 1;
 	float behind_pitch_decrease = 0;
@@ -166,7 +166,7 @@ class sound_manager {
 		items.insert_last(@s);
 		return @s;
 	}
-	positional_sound@ play(string filename, vector v, float rotation = 0.0, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, float pan = 0, double pitch = 100, float volume = 0, string[]@ fx = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
+	positional_sound@ play(string filename, vector v, double rotation = 0.0, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, float pan = 0, double pitch = 100, float volume = 0, string[]@ fx = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
 		clean_sounds();
 		positional_sound s(filename, v, rotation, looping, persist, @fx, @this, owner, leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange);
 		this.last_listener = v;
