@@ -25,4 +25,8 @@ Play a sound.
 `sound_item@`: The sound item class (e.g. positional or stationary) on success, null otherwise.
 
 ## Remarks:
-To determine which sound class it is, you can use casting or specify the return value, for instance, `positional_sound@ s = sound_manager.play`. You can also use the `type` property to verify the sound type. For a list of available sound item types, see `sound_item_types` enum.
+To determine which sound class it is, you can use casting or specify the return value, for instance, `positional_sound@ s = sound_manager.play`. You can also use the `type` property to verify the sound type.
+
+Available types:
+- `sound_item_type_stationary`: Stationary, no coordinates or movements.
+- `sound_item_type_positional`: Positional, have coordinates and movements.
