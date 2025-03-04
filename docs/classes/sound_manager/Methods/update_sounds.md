@@ -7,5 +7,5 @@ Updates all the sounds.
 - `string&in owner`: The owner of the sound to update.
 - `vector position`: The sound's position in vector form to update.
 
-## Return value:
+## Returns:
 `bool`: true on success, false on failure.

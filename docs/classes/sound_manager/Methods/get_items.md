@@ -6,5 +6,5 @@ Returns a list of sounds.
 ## Arguments:
 - `string&in owner`: The owner of the sound to retrieve.
 
-## Return value:
+## Returns:
 `sound_item@[]`: Array of sound item classes on success, empty array otherwise.

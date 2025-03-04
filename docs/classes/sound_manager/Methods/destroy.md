@@ -14,7 +14,7 @@ Stops and removes one or more sounds.
 ## Arguments (3):
 - `string&in owner`: The sound's owner to remove. This will remove all sounds under this owner.
 
-## Return value:
+## Returns:
 1. `bool`: true on success, false on failure.
 2. `int`: The number of sounds that have been removed.
 3. `int`: The number of sounds that have been removed.

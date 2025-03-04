@@ -13,7 +13,7 @@ Play a sound.
 - `float pan = 0`: The pan of the sound.
 - `double pitch = 100`: The pitch of the sound.
 - `float volume = 0`: The volume of the sound.
-- `string[]@ fx = null`: effects to set.
+- `string[]@ fx = null`: effects to attach.
 - `string owner = ""`: The owner of the sound. Usually empty.
 
 ## Arguments (2):
@@ -21,11 +21,11 @@ Play a sound.
 - `double rotation = 0.0`: The rotation of the listener.
 - `int leftrange,  rightrange,  backwardrange,  forwardrange,  lowerrange,  upperrange`: The sound range. They are set to 0 by default.
 
-## Return value:
+## Returns:
 `sound_item@`: The sound item class (e.g. positional or stationary) on success, null otherwise.
 
 ## Remarks:
-To determine which sound class it is, you can use casting or specify the return value, for instance, `positional_sound@ s = sound_manager.play`. You can also use the `type` property to verify the sound type.
+To determine which sound class returns by this function is, you can use casting or specify the return value, for instance, `positional_sound@ s = sound_manager.play`. You can also use the `type` property to verify the sound type.
 
 Available types:
 - `sound_item_type_stationary`: Stationary, no coordinates or movements.

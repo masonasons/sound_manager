@@ -3,5 +3,5 @@ Stops and removes all sounds.
 
 `bool sound_manager::destroy_all();`
 
-## Return value:
+## Returns:
 `bool`: true on success, false on failure.
