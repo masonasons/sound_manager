@@ -1,357 +1,286 @@
 #include "rotation.nvgt"
 enum sound_item_types {
-sound_item_type_stationary = 0,
-sound_item_type_positional};
-abstract class sound_item
-{
-string[]@ fx;
-sound_item_types type;
-sound_manager@ m;
-bool persist;
-bool looping;
-bool played=false;
-bool loaded=false;
-string filename;
-sound handle;
-string owner;
-sound_item(string filename, bool looping=false, bool persist=false, string[]@ fx=null, sound_manager@ m=null, string owner = "")
-{
-@this.m=m;
-this.filename=filename;
-this.looping=looping;
-if (looping)
-this.persist=true;
-else
-this.persist=persist;
-@this.fx=@fx;
-this.owner = owner;
+	sound_item_type_stationary = 0,
+	sound_item_type_positional
+};
+abstract class sound_item {
+	string[]@ fx;
+	sound_item_types type;
+	sound_manager@ m;
+	bool persist;
+	bool looping;
+	bool played = false;
+	bool loaded = false;
+	string filename;
+	sound handle;
+	string owner;
+	float behind_pitch_decrease = 0, pan_step = 1, volume_step = 1;
+	double pitch = 100;
+	float volume = 0;
+	float pan = 0;
+	sound_item(string filename, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "") {
+		@this.m = m;
+		this.filename = filename;
+		this.looping = looping;
+		if (looping)
+			this.persist = true;
+		else
+			this.persist = persist;
+		@this.fx = @fx;
+		this.owner = owner;
+	}
+	bool play(bool wait = false) {
+		if (!this.loaded)
+			this.load();
+		if (this.loaded) {
+			this.handle.pan = this.pan;
+			this.handle.volume = this.volume;
+			this.handle.pitch = this.pitch;
+			this.handle.set_fx("");
+			if (this.fx != null and this.fx.length() > 0) {
+				for (uint i = 0; i < this.fx.length(); i++)
+					this.handle.set_fx(this.fx[i]);
+			}
+			bool result = this.looping ? this.handle.play_looped() : (wait ? this.handle.play_wait() : this.handle.play());
+			if (!this.looping)
+				played = true;
+			return result;
+		}
+		return false;
+	}
+	int opCmp(const sound_item@other) {
+		if (@other == @this) return 0;
+		return -1;
+	}
+	void load() {
+		if (!this.loaded)
+			this.loaded = this.handle.load(filename);
+		if (this.loaded)
+			this.handle.set_mixer(@m.mix);
+	}
 }
-bool play(bool wait=false, int pan=0, int pitch=0, int volume=0)
-{
-if (!this.loaded)
-this.load();
-if (this.loaded)
-{
-if (pan!=0)
-this.handle.pan=pan;
-if (volume!=0)
-this.handle.volume=volume;
-if (pitch!=100)
-this.handle.pitch=pitch;
-this.handle.set_fx("");
-if (this.fx!=null and this.fx.length()>0)
-{
-for (uint i=0; i<this.fx.length(); i++)
-this.handle.set_fx(this.fx[i]);
+class stationary_sound: sound_item {
+	stationary_sound(string filename, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "") {
+		super(filename, looping, persist, @fx, @m, owner);
+		type = sound_item_type_stationary;
+	}
 }
-bool result=this.looping?this.handle.play_looped():(wait?this.handle.play_wait():this.handle.play());
-if (!this.looping)
-played=true;
-return result;
+class positional_sound: sound_item {
+	int leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange;
+	vector pv, v, last_listener;
+	double last_rotation = 0;
+	positional_sound(string filename, vector v, double rotation = 0, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
+		super(filename, looping, persist, @fx, @m, owner);
+		this.v = v;
+		this.pv = v;
+		this.leftrange = leftrange;
+		this.rightrange = rightrange;
+		this.backwardrange = backwardrange;
+		this.forwardrange = forwardrange;
+		this.lowerrange = lowerrange;
+		this.upperrange = upperrange;
+		type = sound_item_type_positional;
+		this.update(v, rotation, force = true);
+	}
+	bool get_in_earshot() property {
+		if (m.max_distance <= 0)
+			return true;
+		if (get_3d_distance(this.last_listener.x, this.last_listener.y, this.last_listener.z, this.pv.x, this.pv.y, this.pv.z) > m.max_distance) {
+			return false;
+		}
+		return true;
+	}
+	bool play(bool wait = false) {
+		if (!in_earshot)
+			return false;
+		if (!this.loaded)
+			this.load();
+		this.update(this.last_listener, this.last_rotation, force = true);
+		return sound_item::play(wait);
+	}
+	void update(vector listener, double rotation = 0, bool force = false) {
+		vector new;
+		int left_x = v.x - this.leftrange;
+		int right_x = v.x + this.rightrange;
+		int bottom_y = v.y - this.backwardrange;
+		int top_y = v.y + this.forwardrange;
+		int bottom_z = v.z - this.lowerrange;
+		int top_z = v.z + this.upperrange;
+		double startpitch = this.pitch;
+		if (listener.x <= left_x)
+			new.x = left_x;
+		else if (listener.x >= right_x)
+			new.x = right_x;
+		else
+			new.x = listener.x;
+		if (listener.y <= bottom_y)
+			new.y = bottom_y;
+		else if (listener.y >= top_y) {
+			new.y = top_y;
+			startpitch -= this.behind_pitch_decrease;
+		} else
+			new.y = listener.y;
+		if (listener.z <= bottom_z)
+			new.z = bottom_z;
+		else if (listener.z >= top_z)
+			new.z = top_z;
+		else
+			new.z = listener.z;
+		if (new != this.pv or this.last_listener != listener or this.last_rotation != rotation or force == true) {
+			this.last_listener = listener;
+			this.pv = new;
+			this.last_rotation = rotation;
+			if (this.loaded) {
+				if (this.handle.pitch != startpitch) this.handle.pitch = startpitch;
+				this.handle.set_position(listener.x, m.y_is_elevation == false ? listener.y : listener.z, m.y_is_elevation == false ? listener.z : listener.y, new.x, m.y_is_elevation ? new.z : new.y, m.y_is_elevation ? new.y : new.z, rotation, this.pan_step, this.volume_step);
+			}
+		}
+	}
 }
-return false;
-}
-int opCmp(const sound_item@other) {
-if(@other == @this) return 0;
-return -1;
-}
-void load()
-{
-if (!this.loaded)
-this.loaded=this.handle.load(filename);
-if (this.loaded)
-this.handle.set_mixer(@m.mix);
-}
-}
-class stationary_sound:sound_item
-{
-stationary_sound(string filename, bool looping=false, bool persist=false, string[]@ fx=null, sound_manager@ m=null, string owner = "")
-{
-super(filename,looping,persist, @fx, @m, owner);
-type=sound_item_type_stationary;
-}
-}
-class positional_sound:sound_item
-{
-int s_length=0, s_width=0, s_height=0;
-vector pv, v, listener;
-positional_sound(string filename, vector v, bool looping=false, bool persist=false, int length=0, int width=0, int height=0, string[]@ fx=null, sound_manager@ m=null, string owner = "")
-{
-super(filename,looping,persist, @fx, @m, owner);
-this.v=v;
-this.pv=this.v;
-this.s_length=length;
-this.s_width=width;
-this.s_height=height;
-type=sound_item_type_positional;
-this.set_sound_position(true);
-}
-bool get_in_earshot() property
-{
-if (m.max_distance<=0)
-return true;
-if (length==0 and width==0 and height==0)
-{
-if (get_3d_distance(m.listener.x,m.listener.y,m.listener.z,this.pv.x,this.pv.y,this.pv.z)>m.max_distance)
-return false;
-}
-else
-{
-if (get_3d_distance(m.listener.x,m.listener.y,m.listener.z,this.pv.x,this.pv.y,this.pv.z)>m.max_distance)
-return false;
-}
-return true;
-}
-bool play(bool wait=false, int pan=0, int pitch=100, int volume=0)
-{
-if (!in_earshot)
-return false;
-if (!this.loaded)
-this.load();
-this.set_sound_position(true);
-return sound_item::play(wait, pan, pitch, volume);
-}
-void set_sound_position(bool force=false)
-{
-if (length==0 and width==0 and height==0)
-{
-if (this.v!=this.pv or this.listener!=m.listener or force==true)
-{
-this.listener=m.listener;
-this.pv=this.v;
-if (this.loaded)
-this.handle.set_position(m.listener.x,m.y_is_elevation==false?m.listener.y:m.listener.z,m.y_is_elevation==false?m.listener.z:m.listener.y,this.v.x,m.y_is_elevation==false?this.v.y:this.v.z,m.y_is_elevation==false?this.v.z:this.v.y,m.rotation,m.pan_step,m.volume_step);
-}
-}
-else
-{
-vector new;
-int left_x=v.x;
-int right_x=v.x+length;
-int bottom_y=v.y;
-int top_y=v.y+width;
-int bottom_z=v.z;
-int top_z=v.z+height;
-if (m.listener.x<=left_x)
-new.x=left_x;
-else if (m.listener.x>=right_x)
-new.x=right_x;
-else
-new.x=m.listener.x;
-if (m.listener.y<=bottom_y)
-new.y=bottom_y;
-else if (m.listener.y>=top_y)
-new.y=top_y;
-else
-new.y=m.listener.y;
-if (m.listener.z<=bottom_z)
-new.z=bottom_z;
-else if (m.listener.z>=top_z)
-new.z=top_z;
-else
-new.z=m.listener.z;
-if (new!=this.pv or this.listener!=m.listener or force==true)
-{
-this.listener=m.listener;
-this.pv=new;
-if (this.loaded)
-this.handle.set_position(m.listener.x,m.y_is_elevation==false?m.listener.y:m.listener.z,m.y_is_elevation==false?m.listener.z:m.listener.y,new.x,m.y_is_elevation?new.z:new.y,m.y_is_elevation?new.y:new.z,m.rotation,m.pan_step,m.volume_step);
-}
-}
-}
-int get_length() property
-{
-return this.s_length;
-}
-void set_length(int l) property
-{
-this.s_length=l;
-this.set_sound_position();
-}
-int get_width() property
-{
-return this.s_width;
-}
-void set_width(int w) property
-{
-this.s_width=w;
-this.set_sound_position();
-}
-int get_height() property
-{
-return this.s_height;
-}
-void set_height(int h) property
-{
-this.s_height=h;
-this.set_sound_position();
-}
-void set_position(vector v) property
-{
-this.v=v;
-this.set_sound_position();
-}
-vector get_position() property
-{
-return v;
-}
-}
-class sound_manager
-{
-vector listener;
-float s_rotation;
-float pan_step=1;
-float volume_step=1;
-int max_distance=0;
-bool y_is_elevation=false;
-sound_item@[] items();
-mixer@ mix;
-sound_manager(mixer@ mix=null)
-{
-if (@mix!=null)
-@this.mix=@mix;
-else
-@this.mix=mixer();
-}
-stationary_sound@ play(string filename, bool looping=false, bool persist=false, bool wait=false, bool immediate=true, int pan=0, int pitch=100, int volume=0, string[]@ fx=null, string owner = "")
-{
-clean_sounds();
-stationary_sound s(filename,looping,persist,@fx, @this, owner);
-if (immediate)
-s.play(wait,pan,pitch,volume);
-else
-s.load();
-items.insert_last(@s);
-return @s;
-}
-positional_sound@ play(string filename, vector v, bool looping=false, bool persist=false, bool wait=false, bool immediate=true, int pan=0, int pitch=100, int volume=0, int length=0, int width=0, int height=0, string[]@ fx=null, string owner = "")
-{
-clean_sounds();
-positional_sound s(filename,v,looping,persist, length, width, height, @fx, @this, owner);
-if (immediate)
-s.play(wait,pan,pitch,volume);
-else
-s.load();
-items.insert_last(@s);
-return @s;
-}
-sound_item@[] get_items(string&in owner) {
-sound_item@[]ret;
-for(uint i = 0; i<this.items.length(); i++) {
-if(this.items[i].owner == owner) ret.insert_last(@this.items[i]);
-}
-return ret;
-}
-bool update_sounds(string&in owner, vector position) {
-sound_item@[] items = this.get_items(owner);
-if(items.length()<=0) return false;
-bool updated = false;
-for(uint i = 0; i<items.length(); i++) {
-if(items[i].type != sound_item_type_positional) continue;
-positional_sound@ snd=cast<positional_sound@>(items[i]);
-if(@snd != null) {
-snd.position = position;
-updated = true;
-}
-}
-if(updated) this.update_sound_positions();
-return updated;
-}
-void update_sound_positions(bool force=false)
-{
-clean_sounds();
-for (uint i=0; i<items.length(); i++)
-{
-if (items[i].type==sound_item_type_positional)
-{
-positional_sound@ snd=cast<positional_sound@>(items[i]);
-if (snd.in_earshot)
-{
-if (!snd.handle.playing and !snd.handle.paused and !snd.played)
-snd.play();
-snd.set_sound_position(force);
-}
-else
-{
-if (snd.handle.playing)
-{
-snd.handle.stop();
-}
-snd.handle.close();
-snd.loaded=false;
-}
-}
-}
-}
-bool destroy(sound_item@ handle)
-{
-if (@handle==null) return false;
-if (@handle.handle!=null and (handle.handle.playing or handle.handle.paused))
-handle.handle.stop();
-if (handle.handle.active)
-handle.handle.close();
-int i = items.find(handle);
-if(i>-1) {
-items.remove_at(i);
-return true;
-}
-return false;
-}
-int destroy(sound_item@[] handles)
-{
-if(handles.length()<=0) return 0;
-int count = 0;
-for (uint i=0; i<handles.length(); i++) {
-if(this.destroy(@handles[i])) count++;
-}
-return count;
-}
-int destroy(string&in owner) {
-return this.destroy(this.get_items(owner));
-}
-void clean_sounds()
-{
-for (uint i=0; i<items.length(); i++)
-{
-if (items[i].handle.playing==false and items[i].persist==false)
-{
-if (items[i].handle!=null and items[i].handle.active)
-items[i].handle.close();
-items.remove_at(i);
-}
-}
-}
-void set_position(vector v) property
-{
-this.listener=v;
-update_sound_positions();
-}
-void set_rotation(float r) property
-{
-this.s_rotation=r;
-update_sound_positions(true);
-}
-float get_rotation() property
-{
-return s_rotation;
-}
-bool destroy_all() {
-return this.destroy(this.items)>0;
-}
-void pause_all()
-{
-for (uint i=0; i<this.items.length(); i++)
-{
-if (@this.items[i].handle!=null and this.items[i].handle.playing)
-this.items[i].handle.pause();
-}
-}
-void resume_all()
-{
-for (uint i=0; i<this.items.length(); i++)
-{
-if (this.items[i].handle!=null and this.items[i].handle.paused)
-this.items[i].play();
-}
-}
+class sound_manager {
+	vector last_listener;
+	double last_rotation;
+	float pan_step = 1;
+	float volume_step = 1;
+	float behind_pitch_decrease = 0;
+	int max_distance = 0;
+	bool y_is_elevation = false;
+	sound_item@[] items();
+	mixer@ mix;
+	sound_manager(mixer@ mix = @sound_default_mixer) {
+		if (@mix != null)
+			@this.mix = @mix;
+		else
+			@this.mix = mixer();
+	}
+	stationary_sound@ play(string filename, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, float pan = 0, double pitch = 100, float volume = 0, string[]@ fx = null, string owner = "") {
+		clean_sounds();
+		stationary_sound s(filename, looping, persist, @fx, @this, owner);
+		s.pan = pan;
+		s.volume = volume;
+		s.pitch = pitch;
+		if (immediate)
+			s.play(wait);
+		else
+			s.load();
+		items.insert_last(@s);
+		return @s;
+	}
+	positional_sound@ play(string filename, vector v, double rotation = 0.0, bool looping = false, bool persist = false, bool wait = false, bool immediate = true, float pan = 0, double pitch = 100, float volume = 0, string[]@ fx = null, string owner = "", int leftrange = 0, int rightrange = 0, int backwardrange = 0, int forwardrange = 0, int lowerrange = 0, int upperrange = 0) {
+		clean_sounds();
+		positional_sound s(filename, v, rotation, looping, persist, @fx, @this, owner, leftrange, rightrange, backwardrange, forwardrange, lowerrange, upperrange);
+		this.last_listener = v;
+		this.last_rotation = rotation;
+		s.volume_step = this.volume_step;
+		s.pan_step = this.pan_step;
+		s.behind_pitch_decrease = this.behind_pitch_decrease;
+		s.pan = pan;
+		s.volume = volume;
+		s.pitch = pitch;
+		if (immediate)
+			s.play(wait);
+		else
+			s.load();
+		items.insert_last(@s);
+		return @s;
+	}
+	sound_item@[] get_items(string&in owner) {
+		sound_item@[]ret;
+		for (uint i = 0; i < this.items.length(); i++) {
+			if (this.items[i].owner == owner) ret.insert_last(@this.items[i]);
+		}
+		return ret;
+	}
+	bool update_sounds(string&in owner, vector position) {
+		clean_sounds();
+		sound_item@[] items = this.get_items(owner);
+		if (items.length() <= 0) return false;
+		bool updated = false;
+		for (uint i = 0; i < items.length(); i++) {
+			if (items[i].type != sound_item_type_positional) continue;
+			positional_sound@ snd = cast < positional_sound@ > (items[i]);
+			if (@snd != null) {
+				snd.v = position;
+				snd.update(snd.last_listener, snd.last_rotation);
+				updated = true;
+			}
+		}
+		return updated;
+	}
+	bool update_sound(sound_item@ handle, vector position, bool force = false) {
+		if (handle is null) return false;
+		if (handle.type == sound_item_type_positional) {
+			positional_sound@ snd = cast < positional_sound@ > (handle);
+			if (snd.in_earshot) {
+				if (!snd.handle.playing and !snd.handle.paused and !snd.played)
+					snd.play();
+				snd.v= position;
+				snd.update(snd.last_listener, snd.last_rotation, force = force);
+			} else {
+				if (snd.handle.playing)
+					snd.handle.stop();
+				snd.handle.close();
+				snd.loaded = false;
+			}
+			return true;
+		}
+		return false;
+	}
+	bool destroy(sound_item@ handle) {
+		if (@handle == null) return false;
+		if (@handle.handle != null and (handle.handle.playing or handle.handle.paused))
+			handle.handle.stop();
+		if (handle.handle.active)
+			handle.handle.close();
+		int i = items.find(handle);
+		if (i > -1) {
+			items.remove_at(i);
+			return true;
+		}
+		return false;
+	}
+	int destroy(sound_item@[] handles) {
+		if (handles.length() <= 0) return 0;
+		int count = 0;
+		for (uint i = 0; i < handles.length(); i++) {
+			if (this.destroy(@handles[i])) count++;
+		}
+		return count;
+	}
+	int destroy(string&in owner) {
+		return this.destroy(this.get_items(owner));
+	}
+	void clean_sounds() {
+		for (uint i = 0; i < items.length(); i++) {
+			if (items[i].handle.playing == false and items[i].persist == false) {
+				if (items[i].handle != null and items[i].handle.active)
+					items[i].handle.close();
+				items.remove_at(i);
+			}
+		}
+	}
+	void update_listener(vector listener, double rotation, bool force = false) {
+		this.last_listener = listener;
+		this.last_rotation = rotation;
+		for (uint i = 0; i < this.items.length(); i++) {
+			positional_sound@ snd = cast<positional_sound@>(this.items[i]);
+			if (snd is null) continue;
+			snd.update(listener, rotation, force = force);
+		}
+	}
+	bool destroy_all() {
+		return this.destroy(this.items) > 0;
+	}
+	void pause_all() {
+		for (uint i = 0; i < this.items.length(); i++) {
+			if (@this.items[i].handle != null and this.items[i].handle.playing)
+				this.items[i].handle.pause();
+		}
+	}
+	void resume_all() {
+		for (uint i = 0; i < this.items.length(); i++) {
+			if (this.items[i].handle != null and this.items[i].handle.paused)
+				this.items[i].play();
+		}
+	}
 }

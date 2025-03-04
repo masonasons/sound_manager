@@ -1,0 +1,3 @@
+root = true
+[*.{md,nvgt}]
+	indent_style = tab

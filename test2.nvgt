@@ -1,0 +1,44 @@
+#include "sound_manager.nvgt"
+sound_manager p;
+timer rotationtimer;
+void main() {
+	sound_global_hrtf = true;
+	show_window("NVGT 3d sound demo");
+	p.behind_pitch_decrease = 5;
+	positional_sound@ s = p.play("music.ogg", vector(0, 0, 0), looping = true);
+	if (@s == null) {
+		alert("oops", "couldn't load sound");
+		return;
+	}
+	int x = 0;
+	int y = 0;
+	int z = 0;
+	double angle = 0;
+	while (true) {
+		wait(5);
+		if (key_pressed(KEY_ESCAPE))
+			exit();
+		if (key_pressed(KEY_N)) p.update_sound(s, vector(random(0, 30), random(0, 30), random(0, 0)));
+		if (key_down(KEY_E) and rotationtimer.elapsed > 100) {
+			angle += calculate_theta(15);
+			rotationtimer.restart();
+		}
+		if (key_down(KEY_Q) and rotationtimer.elapsed > 100) {
+			angle -= calculate_theta(15);
+			rotationtimer.restart();
+		}
+		if (key_pressed(KEY_LEFT))
+			x--;
+		if (key_pressed(KEY_RIGHT))
+			x++;
+		if (key_pressed(KEY_DOWN))
+			y--;
+		if (key_pressed(KEY_UP))
+			y++;
+		if (key_pressed(KEY_PAGEDOWN))
+			z--;
+		if (key_pressed(KEY_PAGEUP))
+			z++;
+		p.update_listener(vector(x, y, z), angle);
+			}
+}
