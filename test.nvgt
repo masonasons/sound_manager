@@ -1,14 +1,14 @@
-#include "sound_manager.nvgt"
+#include "sound_manager_new.nvgt"
 sound_manager snd;
 vector me;
 void main() {
 	me.x = 5;
-	sound_global_hrtf = true;
-	snd.update_listener(me, 0);
+	set_sound_global_hrtf(true);
+	snd.listener=me;
 	positional_sound@ ding = snd.play("music.ogg", vector(15, 0, 0), looping: true, pitch = 100);
 	for (uint i = me.x; i < 40; i++) {
 		me.x++;
-		snd.update_listener(me, 0);
+		snd.listener=me;
 		wait(500);
 	}
 	snd.pause_all();
