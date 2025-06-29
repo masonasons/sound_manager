@@ -80,7 +80,7 @@ vector pv, v, listener;
 positional_sound(string filename, vector v, bool looping=false, bool persist=false, int length=0, int width=0, int height=0, string[]@ fx=null, sound_manager@ m=null, string owner = "")
 {
 super(filename,looping,persist, @fx, @m, owner);
-this.v=v;
+this.v=vector(v.x*this.m.pan_step,v.y*this.m.volume_step,v.z*this.m.volume_step);
 if (m.y_is_elevation)
 this.v=vector(this.v.x,this.v.z,this.v.y);
 this.pv=this.v;
@@ -89,6 +89,10 @@ this.s_width=width;
 this.s_height=height;
 type=sound_item_type_positional;
 this.handle.positioning = AUDIO_POSITIONING_ABSOLUTE;
+if (this.m.rolloff>=0)
+this.handle.rolloff=this.m.rolloff;
+if (this.m.attenuation_model!=this.handle.attenuation_model)
+this.handle.attenuation_model=this.m.attenuation_model;
 this.set_sound_position(true);
 }
 bool get_in_earshot() property
@@ -199,7 +203,7 @@ this.set_sound_position();
 }
 void set_position(vector v) property
 {
-this.v=v;
+this.v=vector(v.x*this.m.pan_step,v.y*this.m.volume_step,v.z*this.m.volume_step);
 if (m.y_is_elevation)
 this.v=vector(this.v.x,this.v.z,this.v.y);
 this.set_sound_position();
@@ -211,6 +215,8 @@ return v;
 }
 class sound_manager
 {
+audio_attenuation_model attenuation_model;
+float rolloff=-1;
 float s_rotation;
 float pan_step=1;
 float volume_step=1;
@@ -370,6 +376,7 @@ this.items[i].play();
 }
 void set_listener(vector v) property
 {
+v=vector(v.x*this.pan_step,v.y*this.volume_step,v.z*this.volume_step);
 if (this.y_is_elevation)
 v=vector(v.x,v.z,v.y);
 sound_set_listener_position(v);
