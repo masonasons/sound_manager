@@ -1,4 +1,4 @@
-#include "sound_manager_new.nvgt"
+#include "sound_manager.nvgt"
 sound_manager snd;
 vector me;
 void main() {
