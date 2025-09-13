@@ -1,3 +1,4 @@
+//Legacy Sound Manager, for use with old NVGT or legacy sound system
 #include "rotation.nvgt"
 enum sound_item_types {
 sound_item_type_stationary = 0,
@@ -38,14 +39,12 @@ if (volume!=0)
 this.handle.volume=volume;
 if (pitch!=100)
 this.handle.pitch=pitch;
-/*
 this.handle.set_fx("");
 if (this.fx!=null and this.fx.length()>0)
 {
 for (uint i=0; i<this.fx.length(); i++)
 this.handle.set_fx(this.fx[i]);
 }
-*/
 bool result=this.looping?this.handle.play_looped():(wait?this.handle.play_wait():this.handle.play());
 if (!this.looping)
 played=true;
@@ -80,19 +79,12 @@ vector pv, v, listener;
 positional_sound(string filename, vector v, bool looping=false, bool persist=false, int length=0, int width=0, int height=0, string[]@ fx=null, sound_manager@ m=null, string owner = "")
 {
 super(filename,looping,persist, @fx, @m, owner);
-this.v=vector(v.x*this.m.pan_step,v.y*this.m.volume_step,v.z*this.m.volume_step);
-if (m.y_is_elevation)
-this.v=vector(this.v.x,this.v.z,this.v.y);
+this.v=v;
 this.pv=this.v;
 this.s_length=length;
 this.s_width=width;
 this.s_height=height;
 type=sound_item_type_positional;
-this.handle.positioning = AUDIO_POSITIONING_ABSOLUTE;
-if (this.m.rolloff>=0)
-this.handle.rolloff=this.m.rolloff;
-if (this.m.attenuation_model!=this.handle.attenuation_model)
-this.handle.attenuation_model=this.m.attenuation_model;
 this.set_sound_position(true);
 }
 bool get_in_earshot() property
@@ -129,10 +121,7 @@ if (this.v!=this.pv or this.listener!=m.listener or force==true)
 this.listener=m.listener;
 this.pv=this.v;
 if (this.loaded)
-{
-this.handle.spatialization_enabled=this.v!=this.m.listener;
-this.handle.set_position_3d(v);
-}
+this.handle.set_position(m.listener.x,m.y_is_elevation==false?m.listener.y:m.listener.z,m.y_is_elevation==false?m.listener.z:m.listener.y,this.v.x,m.y_is_elevation==false?this.v.y:this.v.z,m.y_is_elevation==false?this.v.z:this.v.y,m.rotation,m.pan_step,m.volume_step);
 }
 }
 else
@@ -167,10 +156,7 @@ if (new!=this.pv or this.listener!=m.listener or force==true)
 this.listener=m.listener;
 this.pv=new;
 if (this.loaded)
-{
-this.handle.spatialization_enabled=new!=this.m.listener;
-this.handle.set_position_3d(new);
-}
+this.handle.set_position(m.listener.x,m.y_is_elevation==false?m.listener.y:m.listener.z,m.y_is_elevation==false?m.listener.z:m.listener.y,new.x,m.y_is_elevation?new.z:new.y,m.y_is_elevation?new.y:new.z,m.rotation,m.pan_step,m.volume_step);
 }
 }
 }
@@ -203,9 +189,7 @@ this.set_sound_position();
 }
 void set_position(vector v) property
 {
-this.v=vector(v.x*this.m.pan_step,v.y*this.m.volume_step,v.z*this.m.volume_step);
-if (m.y_is_elevation)
-this.v=vector(this.v.x,this.v.z,this.v.y);
+this.v=v;
 this.set_sound_position();
 }
 vector get_position() property
@@ -215,8 +199,7 @@ return v;
 }
 class sound_manager
 {
-audio_attenuation_model attenuation_model;
-float rolloff=-1;
+vector listener;
 float s_rotation;
 float pan_step=1;
 float volume_step=1;
@@ -329,15 +312,13 @@ return this.destroy(this.get_items(owner));
 }
 void clean_sounds()
 {
-int cleaned=0;
 for (uint i=0; i<items.length(); i++)
 {
-if (!items[i].handle.playing and items[i].persist==false)
+if (items[i].handle.playing==false and items[i].persist==false)
 {
 if (items[i].handle!=null and items[i].handle.active)
 items[i].handle.close();
 items.remove_at(i);
-cleaned++;
 }
 }
 }
@@ -373,16 +354,5 @@ for (uint i=0; i<this.items.length(); i++)
 if (this.items[i].handle!=null and this.items[i].handle.paused)
 this.items[i].play();
 }
-}
-void set_listener(vector v) property
-{
-v=vector(v.x*this.pan_step,v.y*this.volume_step,v.z*this.volume_step);
-if (this.y_is_elevation)
-v=vector(v.x,v.z,v.y);
-sound_set_listener_position(v);
-}
-vector get_listener() property
-{
-return sound_get_listener_position();
 }
 }
