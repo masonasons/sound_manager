@@ -16,6 +16,7 @@ abstract class sound_item {
 	sound handle;
 	string owner;
 	string data;
+	float pitch = 100.0;
 	sound_item(string filename, bool looping = false, bool persist = false, string[]@ fx = null, sound_manager@ m = null, string owner = "", string data = "") {
 		@this.m = m;
 		this.filename = filename;
@@ -28,7 +29,7 @@ abstract class sound_item {
 		this.owner = owner;
 		this.data = data;
 	}
-	bool play(bool wait = false, int pan = 0, int pitch = 0, int volume = 0) {
+	bool play(bool wait = false, int pan = 0, int pitch = 100, int volume = 0) {
 		if (!this.loaded)
 			this.load();
 		if (this.loaded) {
@@ -36,8 +37,10 @@ abstract class sound_item {
 				this.handle.pan = pan;
 			if (volume != 0)
 				this.handle.volume = volume;
-			if (pitch != 100)
+			if (pitch != 100) {
+				this.pitch = pitch;
 				this.handle.pitch = pitch;
+			}
 			/*
 			this.handle.set_fx("");
 			if (this.fx!=null and this.fx.length()>0)
@@ -73,6 +76,7 @@ class stationary_sound: sound_item {
 class positional_sound: sound_item {
 	bool occlude=true;
 	int s_length = 0, s_width = 0, s_height = 0;
+	float behind_pitch_decrease = 0.0;
 	vector pv, v, listener;
 	positional_sound(string filename, vector v, bool looping = false, bool persist = false, int length = 0, int width = 0, int height = 0, string[]@ fx = null, sound_manager@ m = null, string owner = "", string data="", bool occlude=true) {
 		super(filename, looping, persist, @fx, @m, owner, data);
@@ -109,8 +113,9 @@ class positional_sound: sound_item {
 			return false;
 		if (!this.loaded)
 			this.load();
+		this.pitch = pitch;
 		this.set_sound_position(true);
-		return sound_item::play(wait, pan, pitch, volume);
+		return sound_item::play(wait, pan, 100, volume);
 	}
 	audio_low_pass_filter@get_lowpass_filter() property {
 		if(@this._l_filter == null) @this._l_filter = audio_low_pass_filter(500, 2);
@@ -125,7 +130,9 @@ class positional_sound: sound_item {
 				if(this.handle.effects_chain.find(this.lowpass_filter)>-1) this.handle.effects_chain.remove_node(this.lowpass_filter);
 			}
 		}
+		vector sound_pos;
 		if (length == 0 and width == 0 and height == 0) {
+			sound_pos = this.v;
 			if (this.v != this.pv or this.listener != m.listener or force == true) {
 				this.listener = m.listener;
 				this.pv = this.v;
@@ -160,6 +167,7 @@ class positional_sound: sound_item {
 				new.z = top_z;
 			else
 				new.z = m.listener.z;
+			sound_pos = new;
 			if (new != this.pv or this.listener != m.listener or force == true) {
 				this.listener = m.listener;
 				this.pv = new;
@@ -168,6 +176,38 @@ class positional_sound: sound_item {
 					this.handle.set_position_3d(new);
 				}
 			}
+		}
+		// Apply pitch (with behind_pitch_decrease if enabled)
+		if (this.loaded) {
+			float effective_pitch_decrease = this.behind_pitch_decrease >= 0 ? this.behind_pitch_decrease : this.m.behind_pitch_decrease;
+			float final_pitch = this.pitch;
+			if (effective_pitch_decrease > 0) {
+				vector relative_pos = sound_pos - this.m.listener;
+				// Rotate the relative position by negative listener rotation (in degrees) around vertical axis
+				// Negative because we're converting from world coords to listener-relative coords
+				double radians = -this.m.s_rotation * 3.14159265358979 / 180.0;
+				double cos_r = cos(radians);
+				double sin_r = sin(radians);
+				double rotated_x = relative_pos.x * cos_r - relative_pos.y * sin_r;
+				double rotated_y = relative_pos.x * sin_r + relative_pos.y * cos_r;
+				relative_pos.x = rotated_x;
+				relative_pos.y = rotated_y;
+				if (this.m.y_is_elevation) {
+					float temp = relative_pos.y;
+					relative_pos.y = relative_pos.z;
+					relative_pos.z = temp;
+				}
+				// After rotation: positive Y = in front, negative Y = behind
+				// After y_is_elevation swap (if enabled): Y = up/down, Z = front/back
+				if (this.m.y_is_elevation) {
+					if (relative_pos.y < 0) final_pitch -= effective_pitch_decrease; // below
+					if (relative_pos.z < 0) final_pitch -= effective_pitch_decrease; // behind
+				} else {
+					if (relative_pos.y < 0) final_pitch -= effective_pitch_decrease; // behind
+					if (relative_pos.z < 0) final_pitch -= effective_pitch_decrease; // below
+				}
+			}
+			this.handle.pitch = final_pitch;
 		}
 	}
 	int get_length() property {
@@ -204,7 +244,8 @@ class positional_sound: sound_item {
 }
 class sound_manager {
 	float rolloff = -1;
-float directional_attenuation_factor=-1;
+	float directional_attenuation_factor=-1;
+	float behind_pitch_decrease = 0.0;
 	float s_rotation;
 	int max_distance = 0;
 	bool y_is_elevation = false;
@@ -352,6 +393,7 @@ float directional_attenuation_factor=-1;
 		if (this.y_is_elevation)
 			v = vector(v.x, v.z, v.y);
 		sound_set_listener_position(v);
+		update_sound_positions();
 	}
 	vector get_listener() property {
 		return sound_get_listener_position();

@@ -2,15 +2,19 @@
 sound_manager snd;
 vector me;
 void main() {
-	me.x = 5;
+	me.x = 15;
 	set_sound_global_hrtf(true);
 	snd.listener=me;
-	positional_sound@ ding = snd.play("music.ogg", vector(15, 0, 0), looping: true, pitch = 100);
-	for (uint i = me.x; i < 40; i++) {
-		me.x++;
+	snd.behind_pitch_decrease=5;
+	positional_sound@ ding = snd.play("music.ogg", vector(15, 5, 0), looping: true, pitch = 100);
+	for (uint i = me.y; i < 20; i++) {
+		me.y++;
 		snd.listener=me;
-		wait(500);
+		wait(200);
 	}
+	me.z=2;
+	snd.listener=me;
+	wait(500);
 	snd.pause_all();
 	wait(1200);
 	snd.resume_all();
