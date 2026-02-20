@@ -118,8 +118,8 @@ class positional_sound: sound_item {
 		return sound_item::play(wait, pan, 100, volume);
 	}
 	audio_low_pass_filter@get_lowpass_filter() property {
-		if(@this._l_filter == null) @this._l_filter = audio_low_pass_filter(500, 2);
-		return this._l_filter;
+		if(@this.l_filter == null) @this.l_filter = audio_low_pass_filter(this.m.occlude_hz_value, 2);
+		return this.l_filter;
 	}
 	void set_sound_position(bool force = false) {
 		if (this.occlude) {
@@ -231,9 +231,10 @@ class positional_sound: sound_item {
 	vector get_position() property {
 		return v;
 	}
-	private audio_low_pass_filter@_l_filter;
+	audio_low_pass_filter@l_filter;
 }
 class sound_manager {
+		int occlude_hz_value=500;
 	float rolloff = -1;
 	float directional_attenuation_factor=-1;
 	float behind_pitch_decrease = 0.0;
@@ -249,6 +250,15 @@ class sound_manager {
 			@this.mix = @mix;
 		else
 			@this.mix = mixer();
+	}
+	void set_occlude_hz(int value) property {
+		this.occlude_hz_value=value;
+		for (uint i=0; i<items.length(); i++) {
+			if (items[i].type != sound_item_type_positional) continue;
+			positional_sound@ snd = cast < positional_sound@ > (items[i]);
+			if (@snd.l_filter == null)
+				snd.l_filter.cutoff_frequency=value;
+		}
 	}
 	bool set_sound_occlusion_callback(sm_occlude_callback@callback) {
 		if(@callback == null) return false;
