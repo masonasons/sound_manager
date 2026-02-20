@@ -133,16 +133,7 @@ class positional_sound: sound_item {
 		vector sound_pos;
 		if (length == 0 and width == 0 and height == 0) {
 			sound_pos = this.v;
-			if (this.v != this.pv or this.listener != m.listener or force == true) {
-				this.listener = m.listener;
-				this.pv = this.v;
-				if (this.loaded) {
-					this.handle.spatialization_enabled = this.v != this.m.listener;
-					this.handle.set_position_3d(v);
-				}
-			}
 		} else {
-			vector new;
 			int left_x = v.x;
 			int right_x = v.x + length;
 			int bottom_y = v.y;
@@ -150,61 +141,61 @@ class positional_sound: sound_item {
 			int bottom_z = v.z;
 			int top_z = v.z + height;
 			if (m.listener.x <= left_x)
-				new.x = left_x;
+				sound_pos.x = left_x;
 			else if (m.listener.x >= right_x)
-				new.x = right_x;
+				sound_pos.x = right_x;
 			else
-				new.x = m.listener.x;
+				sound_pos.x = m.listener.x;
 			if (m.listener.y <= bottom_y)
-				new.y = bottom_y;
+				sound_pos.y = bottom_y;
 			else if (m.listener.y >= top_y)
-				new.y = top_y;
+				sound_pos.y = top_y;
 			else
-				new.y = m.listener.y;
+				sound_pos.y = m.listener.y;
 			if (m.listener.z <= bottom_z)
-				new.z = bottom_z;
+				sound_pos.z = bottom_z;
 			else if (m.listener.z >= top_z)
-				new.z = top_z;
+				sound_pos.z = top_z;
 			else
-				new.z = m.listener.z;
-			sound_pos = new;
-			if (new != this.pv or this.listener != m.listener or force == true) {
-				this.listener = m.listener;
-				this.pv = new;
-				if (this.loaded) {
-					this.handle.spatialization_enabled = new != this.m.listener;
-					this.handle.set_position_3d(new);
-				}
+				sound_pos.z = m.listener.z;
+		}
+		// Calculate listener-relative position and rotate by listener rotation
+		vector relative_pos = sound_pos - this.m.listener;
+		double cos_r = cos(this.m.s_rotation);
+		double sin_r = sin(this.m.s_rotation);
+		vector rotated_pos;
+		rotated_pos.x = relative_pos.x * cos_r - relative_pos.y * sin_r;
+		rotated_pos.y = relative_pos.x * sin_r + relative_pos.y * cos_r;
+		rotated_pos.z = relative_pos.z;
+		if (this.m.y_is_elevation) {
+			float temp = rotated_pos.y;
+			rotated_pos.y = rotated_pos.z;
+			rotated_pos.z = temp;
+		}
+		// Update cached state and set 3D position
+		if (sound_pos != this.pv or this.listener != m.listener or force == true) {
+			this.listener = m.listener;
+			this.pv = sound_pos;
+			if (this.loaded) {
+				this.handle.spatialization_enabled = sound_pos != this.m.listener;
+				this.handle.set_position_3d(rotated_pos);
 			}
 		}
 		// Apply pitch (with behind_pitch_decrease if enabled)
+		// rotated_pos already has rotation and y_is_elevation swap applied
 		if (this.loaded) {
 			float effective_pitch_decrease = this.behind_pitch_decrease >= 0 ? this.behind_pitch_decrease : this.m.behind_pitch_decrease;
 			float final_pitch = this.pitch;
 			if (effective_pitch_decrease > 0) {
-				vector relative_pos = sound_pos - this.m.listener;
-				// Rotate the relative position by negative listener rotation (in degrees) around vertical axis
-				// Negative because we're converting from world coords to listener-relative coords
-				double radians = -this.m.s_rotation * 3.14159265358979 / 180.0;
-				double cos_r = cos(radians);
-				double sin_r = sin(radians);
-				double rotated_x = relative_pos.x * cos_r - relative_pos.y * sin_r;
-				double rotated_y = relative_pos.x * sin_r + relative_pos.y * cos_r;
-				relative_pos.x = rotated_x;
-				relative_pos.y = rotated_y;
+				// After rotation and y_is_elevation swap:
+				// - Y is up/down (if y_is_elevation) or forward/backward
+				// - Z is forward/backward (if y_is_elevation) or up/down
 				if (this.m.y_is_elevation) {
-					float temp = relative_pos.y;
-					relative_pos.y = relative_pos.z;
-					relative_pos.z = temp;
-				}
-				// After rotation: positive Y = in front, negative Y = behind
-				// After y_is_elevation swap (if enabled): Y = up/down, Z = front/back
-				if (this.m.y_is_elevation) {
-					if (relative_pos.y < 0) final_pitch -= effective_pitch_decrease; // below
-					if (relative_pos.z < 0) final_pitch -= effective_pitch_decrease; // behind
+					if (rotated_pos.y < 0) final_pitch -= effective_pitch_decrease; // below
+					if (rotated_pos.z < 0) final_pitch -= effective_pitch_decrease; // behind
 				} else {
-					if (relative_pos.y < 0) final_pitch -= effective_pitch_decrease; // behind
-					if (relative_pos.z < 0) final_pitch -= effective_pitch_decrease; // below
+					if (rotated_pos.y < 0) final_pitch -= effective_pitch_decrease; // behind
+					if (rotated_pos.z < 0) final_pitch -= effective_pitch_decrease; // below
 				}
 			}
 			this.handle.pitch = final_pitch;
@@ -252,6 +243,7 @@ class sound_manager {
 	sound_item@[] items();
 	mixer@ mix;
 	sm_occlude_callback@on_occlude_sound_callback = null;
+	private vector _listener_pos;
 	sound_manager(mixer@ mix = null) {
 		if (@mix != null)
 			@this.mix = @mix;
@@ -389,13 +381,14 @@ class sound_manager {
 		}
 	}
 	void set_listener(vector v) property {
-		v = vector(v.x, v.y, v.z);
+		_listener_pos = vector(v.x, v.y, v.z);
 		if (this.y_is_elevation)
-			v = vector(v.x, v.z, v.y);
-		sound_set_listener_position(v);
+			_listener_pos = vector(_listener_pos.x, _listener_pos.z, _listener_pos.y);
+		// Set audio engine listener to origin since we pass rotated listener-relative coordinates
+		sound_set_listener_position(vector(0, 0, 0));
 		update_sound_positions();
 	}
 	vector get_listener() property {
-		return sound_get_listener_position();
+		return _listener_pos;
 	}
 }
